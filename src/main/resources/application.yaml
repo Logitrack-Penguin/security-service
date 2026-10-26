@@ -1,3 +1,52 @@
+# =====================================================================
+# CONFIGURACIÓN GENERAL DEL MICROSERVICIO: SECURITY-SERVICE
+# =====================================================================
+# Este archivo define los parámetros de arranque, el puerto de escucha,
+# la integración con el servidor de configuración centralizado y la 
+# conexión local de respaldo a la base de datos MySQL.
+# =====================================================================
+
+server:
+  # Puerto en el que correrá localmente el microservicio de seguridad
+  port: 8081
+
 spring:
   application:
+    # Nombre identificatorio del microservicio dentro de la arquitectura distribuida
     name: security-service
+
+  profiles:
+    # Perfil activo actual para la ejecución (desarrollo)
+    active: dev
+
+  config:
+    # Conexión opcional al Config Server centralizado (repositorio de configuraciones)
+    # Si el servidor no está activo, utilizará las propiedades locales de respaldo de abajo.
+    import: optional:configserver:http://localhost:8085/
+
+  # =====================================================================
+  # CONFIGURACIÓN DE BASE DE DATOS LOCAL (Respaldo para desarrollo)
+  # =====================================================================
+  datasource:
+    # URL de conexión JDBC hacia la base de datos MySQL dedicada a la seguridad
+    url: jdbc:mysql://localhost:3306/security_service?useSSL=false&serverTimezone=UTC
+    # Credenciales de acceso a la instancia de MySQL
+    username: root
+    password: 1234
+    # Driver JDBC utilizado para la comunicación con MySQL
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # =====================================================================
+  # CONFIGURACIÓN DE JPA / HIBERNATE (ORM)
+  # =====================================================================
+  jpa:
+    hibernate:
+      # Estrategia DDL: 'update' actualiza o crea las tablas automáticamente 
+      # según las entidades de código definidas (ideal para entorno de desarrollo)
+      ddl-auto: update
+    # Habilita la visualización de las sentencias SQL en la consola para depuración
+    show-sql: true
+    properties:
+      hibernate:
+        # Dialecto específico para optimizar las consultas generadas hacia MySQL
+        dialect: org.hibernate.dialect.MySQLDialect
