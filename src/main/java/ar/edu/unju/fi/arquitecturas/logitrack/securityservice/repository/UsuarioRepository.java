@@ -32,6 +32,7 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
      * @return true si el correo ya se encuentra registrado, false en caso contrario.
      */
     boolean existsByEmail(String email);
+
     /**
      * Verifica la existencia previa de un nombre de usuario en la base de datos.
      *
