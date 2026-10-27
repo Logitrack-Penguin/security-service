@@ -25,11 +25,11 @@ import java.util.function.Function;
 public class JwtUtil {
 
     /** Clave secreta estática inyectada desde las propiedades de configuración. */
-    @Value("${logitrack.app.jwtSecret}")
+    @Value("${logitrack.app.jwtSecret:claveSecretaPorDefectoMuyLargaYSeguraParaGarantizarElMinimoDeBitsRequeridosPorHS512}")
     private String jwtSecret;
 
     /** Tiempo de expiración del token en milisegundos, inyectado desde la configuración. */
-    @Value("${logitrack.app.jwtExpirationMs}")
+    @Value("${logitrack.app.jwtExpirationMs:86400000}")
     private int jwtExpirationMs;
 
     /**
