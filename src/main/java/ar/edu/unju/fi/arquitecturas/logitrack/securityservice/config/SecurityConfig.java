@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -16,27 +17,25 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 /**
  * Clase de configuración principal para la seguridad web utilizando @Configuration
- * (anotación que indica que la clase contiene definiciones de beans y configuraciones de Spring)
- * y @EnableWebSecurity (anotación para habilitar y personalizar la seguridad web de Spring Security).
- * Define los beans (componentes gestionados por el contenedor de Spring) necesarios para el cifrado
- * de contraseñas, la gestión de autenticación y las reglas de filtrado HTTP mediante el SecurityFilterChain.
- *
+ * y @EnableWebSecurity. Define los beans necesarios para el cifrado de contraseñas,
+ * la gestión de autenticación, las reglas de filtrado HTTP mediante el SecurityFilterChain
+ * y habilita la seguridad basada en anotaciones a nivel de métodos con @EnableMethodSecurity.
+ * 
  * @author Elías Maciel Villalva
  * @version 1.0
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity // <-- ¡Habilita @PreAuthorize a nivel de métodos!
 public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
-     * Define el bean (componente administrado por el contenedor de Spring) para el cifrado
-     * de contraseñas utilizando el algoritmo fuerte BCryptPasswordEncoder (función criptográfica
-     * de hash unidireccional con sal aleatoria para máxima seguridad).
-     *
-     * @return Una instancia de PasswordEncoder (interfaz para codificación de credenciales) basada en BCrypt.
+     * Define el bean para el cifrado de contraseñas utilizando el algoritmo fuerte BCryptPasswordEncoder.
+     * 
+     * @return Una instancia de PasswordEncoder basada en BCrypt.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,12 +43,11 @@ public class SecurityConfig {
     }
 
     /**
-     * Define el AuthenticationManager (administrador de autenticación central encargado de procesar
-     * y validar las credenciales de los usuarios) extrayendo la configuración global por defecto del sistema.
-     *
+     * Define el AuthenticationManager encargado de procesar y validar las credenciales de los usuarios.
+     * 
      * @param authenticationConfiguration Configuración global de autenticación provista por Spring.
-     * @return El administrador de autenticación listo para ser utilizado en los controladores de login.
-     * @throws Exception Si ocurre algún error al obtener el gestor de autenticación.
+     * @return El administrador de autenticación.
+     * @throws Exception Si ocurre algún error al obtener el gestor.
      */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
@@ -57,37 +55,31 @@ public class SecurityConfig {
     }
 
     /**
-     * Configura el SecurityFilterChain (cadena de filtros de seguridad HTTP) que intercepta
-     * todas las peticiones web entrantes para aplicar reglas de acceso, desactivar protecciones
-     * innecesarias para arquitecturas REST y registrar el filtro personalizado de JWT.
-     *
-     * @param http Objeto HttpSecurity (constructor DSL para configurar la seguridad web HTTP) provisto por Spring.
-     * @return La cadena de filtros de seguridad configurada y lista para operar.
-     * @throws Exception Si ocurre un error durante la configuración de las reglas HTTP.
+     * Configura el SecurityFilterChain que intercepta todas las peticiones web entrantes
+     * para aplicar reglas de acceso, configurar estado stateless e integrar el filtro JWT.
+     * 
+     * @param http Objeto HttpSecurity provisto por Spring.
+     * @return La cadena de filtros de seguridad configurada.
+     * @throws Exception Si ocurre un error durante la configuración.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Desactivar CSRF (Cross-Site Request Forgery, protección contra falsificación de peticiones en sitios cruzados)
-                // ya que al utilizar JWT en arquitecturas REST stateless no se requiere mantener cookies de sesión en el navegador.
+                // Desactivar CSRF ya que usamos tokens JWT sin estado
                 .csrf(csrf -> csrf.disable())
 
-                // Configurar las reglas de autorización (permisos de acceso) para las rutas HTTP entrantes.
+                // Configurar las reglas de autorización para las rutas HTTP entrantes
                 .authorizeHttpRequests(auth -> auth
-                        // Permitir acceso público sin autenticación a todos los endpoints (rutas web) del prefijo de autenticación (/api/auth/**).
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Cualquier otra petición HTTP requerirá obligatoriamente que el usuario esté autenticado con un token válido.
                         .anyRequest().authenticated()
                 )
 
-                // Configurar la gestión de sesiones como STATELESS (sin estado, política donde el servidor no crea
-                // ni almacena sesiones HTTP en memoria para los usuarios, delegando toda la persistencia de identidad al token JWT).
+                // Configurar la gestión de sesiones como STATELESS
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Agregar nuestro filtro JWT personalizado (jwtAuthenticationFilter) antes de que se ejecute el filtro
-                // por defecto de autenticación por usuario y contraseña (UsernamePasswordAuthenticationFilter).
+                // Agregar nuestro filtro JWT personalizado antes del filtro de autenticación por usuario/contraseña
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
