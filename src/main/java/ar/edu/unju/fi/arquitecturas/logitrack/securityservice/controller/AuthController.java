@@ -3,6 +3,7 @@ package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.controller;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.JwtResponse;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.LoginRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.RegistroRequest;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.UserResponse;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Rol;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Usuario;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.repository.UsuarioRepository;
@@ -143,5 +144,44 @@ public class AuthController {
         usuarioRepository.save(usuario);
         log.info("Usuario '{}' registrado y persistido exitosamente en la base de datos.", registroRequest.getUsername());
         return ResponseEntity.ok("¡Usuario registrado exitosamente!");
+    }
+    /**
+     * Permite al usuario autenticado consultar su propia información de perfil
+     * a partir del token JWT enviado en la cabecera de la petición.
+     *
+     * @return ResponseEntity con los datos del usuario (username, email, roles).
+     */
+    @GetMapping("/me")
+    public ResponseEntity<?> getCurrentUserProfile() {
+        log.info("Solicitud recibida para consultar el perfil del usuario actual (/me)");
+
+        // Obtiene la autenticación actual del contexto de seguridad de Spring
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("Intento de acceso a /me sin credenciales válidas en el contexto.");
+            return ResponseEntity.status(401).body("Error: No autorizado");
+        }
+
+        String username = authentication.getName();
+
+        // Busca el usuario en la base de datos
+        Usuario usuario = usuarioRepository.findByUsername(username)
+                .orElse(null);
+
+        if (usuario == null) {
+            log.error("Usuario con username '{}' no encontrado en la base de datos.", username);
+            return ResponseEntity.status(404).body("Error: Usuario no encontrado");
+        }
+
+        // Mapea los roles del usuario a formato String
+        Set<String> roles = usuario.getRoles().stream()
+                .map(rol -> rol.name())
+                .collect(Collectors.toSet());
+
+        UserResponse response = new UserResponse(usuario.getUsername(), usuario.getEmail(), roles);
+
+        log.info("Perfil devuelto exitosamente para el usuario: {}", username);
+        return ResponseEntity.ok(response);
     }
 }
