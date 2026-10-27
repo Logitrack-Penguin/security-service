@@ -1,63 +1,46 @@
 # =====================================================================
-# CONFIGURACIÓN GENERAL DEL MICROSERVICIO: SECURITY-SERVICE
-# =====================================================================
-# Este archivo define los parámetros de arranque, el puerto de escucha,
-# la integración con el servidor de configuración centralizado y la 
-# conexión local de respaldo a la base de datos MySQL.
+# CONFIGURACIÓN DE SECURITY-SERVICE
+# Valores por defecto para desarrollo. En Docker/Compose se sobreescriben
+# con variables de entorno y con el Config Server (security-service-<perfil>.yml).
+# Los SECRETOS (DB_PASSWORD, JWT_SECRET) no tienen valor por defecto a propósito.
 # =====================================================================
 
 server:
-  # Puerto en el que correrá localmente el microservicio de seguridad
-  port: 8081
+  port: ${SERVER_PORT:8081}
 
 spring:
   application:
-    # Nombre identificatorio del microservicio dentro de la arquitectura distribuida
     name: security-service
 
   profiles:
-    # Perfil activo actual para la ejecución (desarrollo)
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   config:
-    # Conexión opcional al Config Server centralizado (repositorio de configuraciones)
-    # Si el servidor no está activo, utilizará las propiedades locales de respaldo de abajo.
-    import: optional:configserver:http://localhost:8085/
+    # En Docker: CONFIG_SERVER_URL=http://config-server:8085 (nunca localhost entre contenedores)
+    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8085}
 
-  # =====================================================================
-  # CONFIGURACIÓN DE BASE DE DATOS LOCAL (Respaldo para desarrollo)
-  # =====================================================================
   datasource:
-    # URL de conexión JDBC hacia la base de datos MySQL dedicada a la seguridad
-    url: jdbc:mysql://localhost:3306/security_service?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    # Credenciales de acceso a la instancia de MySQL
-    username: root
-    password: 1234
-    # Driver JDBC utilizado para la comunicación con MySQL
+    url: ${DB_URL:jdbc:mysql://localhost:3306/security_service?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # =====================================================================
-  # CONFIGURACIÓN DE JPA / HIBERNATE (ORM)
-  # =====================================================================
   jpa:
     hibernate:
-      # Estrategia DDL: 'update' actualiza o crea las tablas automáticamente 
-      # según las entidades de código definidas (ideal para entorno de desarrollo)
-      ddl-auto: update
-    # Habilita la visualización de las sentencias SQL en la consola para depuración
-    show-sql: true
-    properties:
-      hibernate:
-        # Dialecto específico para optimizar las consultas generadas hacia MySQL
-        dialect: org.hibernate.dialect.MySQLDialect
-  # =====================================================================
-  # CONFIGURACIÓN DE SEGURIDAD Y JWT (Logitrack)
-  # =====================================================================
-  logitrack:
-    app:
-      # Clave secreta estática en Base64 (mínimo 256 bits) compartida con los demás microservicios
-      jwtSecret: "404E635266556A586E3272357538782F413F4428472B4B6250655368566B5970"
-      # Tiempo de expiración del token JWT en milisegundos (ej. 24 horas = 86400000 ms)
-      jwtExpirationMs: 86400000
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
 
+# Estas propiedades van en la RAÍZ (no dentro de "spring:")
+logitrack:
+  jwt:
+    # Clave HMAC en Base64 (mínimo 32 bytes). Debe ser la MISMA en shipment-service y courier-service.
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+  bootstrap-admin:
+    username: ${ADMIN_USERNAME:}
+    password: ${ADMIN_PASSWORD:}
+    email: ${ADMIN_EMAIL:admin@logitrack.local}
 
+logging:
+  level:
+    ar.edu.unju.fi.arquitecturas.logitrack: ${LOG_LEVEL:INFO}
