@@ -7,6 +7,7 @@ import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Rol;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Usuario;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.repository.UsuarioRepository;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.util.JwtUtil;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
  * @author Elías Maciel Villalva
  * @version 1.0
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -56,23 +58,28 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+        log.info("Intento de inicio de sesión recibido para el usuario: {}", loginRequest.getUsername());
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword()
+                    )
+            );
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword()
-                )
-        );
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String jwt = jwtUtil.generateToken(userDetails);
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String jwt = jwtUtil.generateToken(userDetails);
-
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(item -> item.getAuthority())
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername(), roles));
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(item -> item.getAuthority())
+                    .collect(Collectors.toList());
+            log.info("Autenticación exitosa para el usuario: {}. Token JWT generado correctamente.", loginRequest.getUsername());
+            return ResponseEntity.ok(new JwtResponse(jwt, userDetails.getUsername(), roles));
+        } catch (Exception e) {
+            log.error("Fallo en la autenticación para el usuario {}: {}", loginRequest.getUsername(), e.getMessage());
+            throw e;
+        }
     }
 
     /**
@@ -85,34 +92,47 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@RequestBody RegistroRequest registroRequest) {
-
+        log.info("Solicitud de registro recibida para el nuevo usuario: {}", registroRequest.getUsername());
         // Validar si el nombre de usuario ya se encuentra registrado en el sistema.
         if (usuarioRepository.existsByUsername(registroRequest.getUsername())) {
+            log.warn("Intento de registro fallido: el nombre de usuario '{}' ya se encuentra en uso.", registroRequest.getUsername());
             return ResponseEntity
                     .badRequest()
                     .body("Error: ¡El nombre de usuario ya está en uso!");
+        }
+        if (usuarioRepository.existsByEmail(registroRequest.getEmail())) {
+            log.warn("Intento de registro fallido: el correo electrónico '{}' ya se encuentra registrado.", registroRequest.getEmail());
+            return ResponseEntity
+                    .badRequest()
+                    .body("Error: ¡El correo electrónico ya está en uso!");
         }
 
         // Crear una nueva entidad Usuario y cifrar su contraseña utilizando el PasswordEncoder (BCrypt).
         Usuario usuario = new Usuario();
         usuario.setUsername(registroRequest.getUsername());
+        usuario.setEmail(registroRequest.getEmail());
         usuario.setPassword(encoder.encode(registroRequest.getPassword()));
 
         Set<String> strRoles = registroRequest.getRoles();
         Set<Rol> roles = new HashSet<>();
 
         // Validar y asignar los roles correspondientes al usuario.
-        if (strRoles == null) {
-            Rol adminRole = Rol.ADMIN; // O el rol por defecto que prefieras en tu modelo
-            roles.add(adminRole);
+        if (strRoles == null || strRoles.isEmpty()) {
+            roles.add(Rol.CLIENTE);
         } else {
             strRoles.forEach(role -> {
                 switch (role.toLowerCase()) {
-                    case "admin":
+                    case "ADMIN":
                         roles.add(Rol.ADMIN);
                         break;
+                    case "CLIENTE":
+                        roles.add(Rol.CLIENTE);
+                        break;
+                    case "REPARTIDOR":
+                        roles.add(Rol.REPARTIDOR);
+                        break;
                     default:
-                        roles.add(Rol.ADMIN); // Rol por defecto por seguridad
+                        roles.add(Rol.CLIENTE); // Rol por defecto por seguridad
                 }
             });
         }
@@ -121,7 +141,7 @@ public class AuthController {
 
         // Guardar el usuario en la base de datos a través del repositorio.
         usuarioRepository.save(usuario);
-
+        log.info("Usuario '{}' registrado y persistido exitosamente en la base de datos.", registroRequest.getUsername());
         return ResponseEntity.ok("¡Usuario registrado exitosamente!");
     }
 }
