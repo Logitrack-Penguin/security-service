@@ -18,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.HashSet;
 import java.util.List;
@@ -183,5 +184,28 @@ public class AuthController {
 
         log.info("Perfil devuelto exitosamente para el usuario: {}", username);
         return ResponseEntity.ok(response);
+    }
+    /**
+     * Endpoint exclusivo para administradores protegido con @PreAuthorize.
+     *
+     * @return Mensaje de bienvenida administrativo.
+     */
+    @GetMapping("/admin/dashboard")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<?> getAdminDashboard() {
+        log.info("Acceso al panel de administración autorizado.");
+        return ResponseEntity.ok("Bienvenido al panel de administración de Logitrack.");
+    }
+
+    /**
+     * Endpoint accesible por repartidores o administradores.
+     *
+     * @return Listado de envíos.
+     */
+    @GetMapping("/repartidor/envios")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'REPARTIDOR')")
+    public ResponseEntity<?> getEnviosRepartidor() {
+        log.info("Acceso al módulo de repartidores autorizado.");
+        return ResponseEntity.ok("Listado de envíos asignados.");
     }
 }
