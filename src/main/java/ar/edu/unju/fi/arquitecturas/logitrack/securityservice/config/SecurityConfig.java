@@ -20,7 +20,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * y @EnableWebSecurity. Define los beans necesarios para el cifrado de contraseñas,
  * la gestión de autenticación, las reglas de filtrado HTTP mediante el SecurityFilterChain
  * y habilita la seguridad basada en anotaciones a nivel de métodos con @EnableMethodSecurity.
- * 
+ *
  * @author Elías Maciel Villalva
  * @version 1.0
  */
@@ -34,7 +34,7 @@ public class SecurityConfig {
 
     /**
      * Define el bean para el cifrado de contraseñas utilizando el algoritmo fuerte BCryptPasswordEncoder.
-     * 
+     *
      * @return Una instancia de PasswordEncoder basada en BCrypt.
      */
     @Bean
@@ -44,7 +44,7 @@ public class SecurityConfig {
 
     /**
      * Define el AuthenticationManager encargado de procesar y validar las credenciales de los usuarios.
-     * 
+     *
      * @param authenticationConfiguration Configuración global de autenticación provista por Spring.
      * @return El administrador de autenticación.
      * @throws Exception Si ocurre algún error al obtener el gestor.
@@ -57,7 +57,7 @@ public class SecurityConfig {
     /**
      * Configura el SecurityFilterChain que intercepta todas las peticiones web entrantes
      * para aplicar reglas de acceso, configurar estado stateless e integrar el filtro JWT.
-     * 
+     *
      * @param http Objeto HttpSecurity provisto por Spring.
      * @return La cadena de filtros de seguridad configurada.
      * @throws Exception Si ocurre un error durante la configuración.
