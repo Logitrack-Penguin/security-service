@@ -18,4 +18,4 @@ public enum Rol {
 
     /** Rol asignado a los operadores o repartidores encargados de la logística. */
     REPARTIDOR
-}
+}

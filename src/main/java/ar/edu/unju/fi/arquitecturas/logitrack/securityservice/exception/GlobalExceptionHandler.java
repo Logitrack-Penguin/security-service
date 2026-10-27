@@ -1,16 +1,20 @@
 package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.exception;
 
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.ApiError;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.stream.Collectors;
@@ -21,8 +25,9 @@ import java.util.stream.Collectors;
  * con el código HTTP correspondiente.
  *
  * @author Elías Maciel Villalva
- * @version 1.0
+ * @version 2.0
  */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -83,6 +88,53 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiError> handleStatus(ResponseStatusException ex) {
         return build(ex.getStatusCode(), ex.getReason());
+    }
+
+    /**
+     * Violación de una restricción única de la base de datos. Cubre el caso de dos registros
+     * simultáneos con el mismo username o email, que superan la validación previa del servicio.
+     *
+     * @param ex Excepción de integridad lanzada por JPA/Hibernate.
+     * @return Respuesta 409.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex) {
+        return build(HttpStatus.CONFLICT, "El nombre de usuario o el correo electrónico ya está en uso");
+    }
+
+    /**
+     * Ruta inexistente.
+     *
+     * @param ex Excepción de recurso no encontrado.
+     * @return Respuesta 404.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResource(NoResourceFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, "El recurso solicitado no existe");
+    }
+
+    /**
+     * Método HTTP no soportado por el endpoint (por ejemplo, GET sobre /api/auth/login).
+     *
+     * @param ex Excepción de método no soportado.
+     * @return Respuesta 405.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        return build(HttpStatus.METHOD_NOT_ALLOWED, "Método HTTP no permitido para este recurso");
+    }
+
+    /**
+     * Cualquier error no previsto. Se registra el detalle en el log, pero al cliente solo se le
+     * devuelve un mensaje genérico para no exponer información interna (stacktrace, SQL, etc.).
+     *
+     * @param ex Excepción inesperada.
+     * @return Respuesta 500.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleUnexpected(Exception ex) {
+        log.error("Error inesperado", ex);
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Ocurrió un error interno. Intentá nuevamente más tarde");
     }
 
     /**
