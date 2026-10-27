@@ -29,7 +29,7 @@ import java.io.IOException;
  * de contraseñas, la gestión de autenticación y las reglas de filtrado HTTP mediante el SecurityFilterChain.
  *
  * @author Elías Maciel Villalva
- * @version 2.0
+ * @version 2.1
  */
 @Configuration
 @EnableWebSecurity
@@ -88,6 +88,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         // /error debe ser accesible para que Spring pueda renderizar sus páginas de error.
                         .requestMatchers("/error").permitAll()
+                        // Documentación OpenAPI / Swagger UI.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Cualquier otra petición HTTP requiere que el usuario esté autenticado.
                         .anyRequest().authenticated()
                 )

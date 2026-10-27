@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>ar.edu.unju.fi.arquitecturas.logitrack</groupId>
 	<artifactId>security-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>security-service</name>
 	<description>security-service</description>
 	<url/>
@@ -52,6 +52,13 @@
 			<artifactId>spring-cloud-starter-config</artifactId>
 		</dependency>
 
+		<!-- Documentación interactiva de la API (OpenAPI 3 / Swagger UI). Misma versión que shipment-service. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.1.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -70,6 +77,12 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- Base de datos en memoria para que los tests no dependan de un MySQL externo. -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

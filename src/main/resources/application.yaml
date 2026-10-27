@@ -36,10 +36,16 @@ logitrack:
     # Clave HMAC en Base64 (mínimo 32 bytes). Debe ser la MISMA en shipment-service y courier-service.
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:3600000}
+    # Emisor (claim "iss"). shipment-service y courier-service deben exigir este mismo valor.
+    issuer: ${JWT_ISSUER:logitrack-security-service}
   bootstrap-admin:
     username: ${ADMIN_USERNAME:}
     password: ${ADMIN_PASSWORD:}
     email: ${ADMIN_EMAIL:admin@logitrack.local}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
 
 logging:
   level:
