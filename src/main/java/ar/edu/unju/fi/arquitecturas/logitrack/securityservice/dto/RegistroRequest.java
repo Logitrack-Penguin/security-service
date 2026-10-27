@@ -1,5 +1,10 @@
 package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.util.Set;
 
 /**
@@ -10,38 +15,29 @@ import java.util.Set;
  * @author Elías Maciel Villalva
  * @version 1.0
  */
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
 public class RegistroRequest {
 
-    /** Nombre de usuario (username, identificador único de acceso) para la nueva cuenta. */
+    /**
+     * Nombre de usuario (username, identificador único de acceso) para la nueva cuenta.
+     */
     private String username;
 
-    /** Contraseña en texto plano (password) que será cifrada antes de almacenarse en la base de datos. */
+    /**
+     * Contraseña en texto plano (password) que será cifrada antes de almacenarse en la base de datos.
+     */
     private String password;
 
-    /** Conjunto (Set, colección de elementos únicos sin duplicados) de roles asignados al usuario. */
+    /**
+     * Correo electrónico obligatorio del usuario.
+     */
+    private String email;
+
+    /**
+     * Conjunto (Set, colección de elementos únicos sin duplicados) de roles asignados al usuario.
+     */
     private Set<String> roles;
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public Set<String> getRoles() {
-        return roles;
-    }
-
-    public void setRoles(Set<String> roles) {
-        this.roles = roles;
-    }
 }
