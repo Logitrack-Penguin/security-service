@@ -50,3 +50,12 @@ spring:
       hibernate:
         # Dialecto específico para optimizar las consultas generadas hacia MySQL
         dialect: org.hibernate.dialect.MySQLDialect
+  # =====================================================================
+  # CONFIGURACIÓN DE SEGURIDAD Y JWT (Logitrack)
+  # =====================================================================
+  logitrack:
+    app:
+      # Clave secreta estática en Base64 (mínimo 256 bits) compartida con los demás microservicios
+      jwtSecret: "404E635266556A586E3272357538782F413F4428472B4B6250655368566B5970"
+      # Tiempo de expiración del token JWT en milisegundos (ej. 24 horas = 86400000 ms)
+      jwtExpirationMs: 86400000
