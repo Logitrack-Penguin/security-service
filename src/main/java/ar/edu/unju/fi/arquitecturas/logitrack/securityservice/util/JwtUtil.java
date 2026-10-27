@@ -1,59 +1,80 @@
 package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.util;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Componente (clase administrada por el contenedor de Spring) utilitario para la gestión integral de JSON Web Tokens (JWT).
- * Proporciona métodos para la generación, extracción de claims (datos almacenados en el payload), validación
- * de identidad y verificación de vigencia de los tokens de acceso.
+ * Utilidad criptográfica para la generación, firma y validación de tokens JWT (JSON Web Tokens).
+ * Utiliza la librería JJWT (v0.12.6) y una clave secreta estática compartida para permitir 
+ * la validación de identidad entre los microservicios de la plataforma Logitrack.
  *
- * @author Logitrack PenguinD
+ * @author Elías Maciel Villalva
  * @version 1.0
  */
+@Slf4j
 @Component
 public class JwtUtil {
 
-    /** Llave secreta (clave criptográfica simétrica) generada automáticamente para el algoritmo HS256. */
-    private final SecretKey secretKey = Jwts.SIG.HS256.key().build();
+    /** Clave secreta estática inyectada desde las propiedades de configuración. */
+    @Value("${logitrack.app.jwtSecret}")
+    private String jwtSecret;
 
-    /** Tiempo de expiración (vencimiento) configurado para los tokens en milisegundos (36000000ms equivalentes a 10 horas). */
-    private final long jwtExpirationMs = 36000000;
+    /** Tiempo de expiración del token en milisegundos, inyectado desde la configuración. */
+    @Value("${logitrack.app.jwtExpirationMs}")
+    private int jwtExpirationMs;
 
     /**
-     * Extrae el nombre de usuario (subject, identificador principal del propietario) contenido en los claims (datos) del token.
+     * Obtiene y procesa la clave secreta criptográfica a partir del texto configurado
+     * para adaptarla a los algoritmos de firma HMAC-SHA de JJWT.
      *
-     * @param token El token JWT del cual se extraerá el username.
-     * @return El nombre de usuario asociado al token.
+     * @return SecretKey firmada y lista para criptografía simétrica.
+     */
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    /**
+     * Genera un token JWT estandarizado a partir de los detalles de sesión del usuario autenticado.
+     *
+     * @param userDetails Objeto UserDetails que contiene las credenciales y autoridades del usuario en Spring Security.
+     * @return Token JWT firmado en formato String listo para ser devuelto en la respuesta HTTP.
+     */
+    public String generateToken(UserDetails userDetails) {
+        log.debug("Generando token JWT para el usuario: {}", userDetails.getUsername());
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    /**
+     * Extrae el nombre de usuario (subject) contenido dentro de las declaraciones (claims) del token JWT.
+     *
+     * @param token Cadena de texto que representa el token JWT.
+     * @return Nombre de usuario asociado al token.
      */
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
     /**
-     * Extrae la fecha de expiración (vencimiento) contenida en los claims del token.
+     * Extrae una propiedad (claim) específica del token utilizando una función genérica de resolución.
      *
-     * @param token El token JWT a evaluar.
-     * @return La fecha y hora límite de validez del token.
-     */
-    public Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    /**
-     * Método genérico (reutilizable para cualquier tipo de dato) para extraer un claim (información específica) aplicando una función de resolución (interfaz funcional).
-     *
-     * @param token El token JWT.
-     * @param claimsResolver Expresión funcional para extraer el campo deseado de los claims.
-     * @param <T> Tipo de dato del claim a retornar.
+     * @param token Cadena de texto que representa el token JWT.
+     * @param claimsResolver Función funcional para extraer el claim deseado del cuerpo del token.
+     * @param <T> Tipo de dato devuelto por el claim.
      * @return El valor del claim extraído.
      */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -62,68 +83,59 @@ public class JwtUtil {
     }
 
     /**
-     * Analiza y decodifica el token firmado utilizando la clave secreta para obtener todos sus claims (la carga útil o payload del token).
+     * Extrae todas las declaraciones (claims/cuerpo) del token JWT, verificando previamente
+     * su integridad y su firma criptográfica mediante la clave secreta compartida.
      *
-     * @param token El token JWT firmado.
-     * @return Objeto Claims que contiene la estructura de datos interna del token.
+     * @param token Cadena de texto que representa el token JWT.
+     * @return Objeto Claims que contiene toda la información útil almacenada en el token.
+     * @throws JwtException si el token es inválido, ha expirado o su firma no coincide.
      */
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(secretKey)
+                .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
     }
 
     /**
-     * Verifica si el token ha superado su fecha de expiración (vencimiento).
+     * Valida la autenticidad y vigencia de un token JWT contrastándolo con los detalles del usuario.
      *
-     * @param token El token JWT.
-     * @return true si la fecha de expiración es anterior al momento actual, false en caso contrario.
+     * @param token Cadena de texto que representa el token JWT.
+     * @param userDetails Objeto UserDetails del usuario actual para validar correspondencia.
+     * @return true si el token es estructural y temporalmente válido y pertenece al usuario; false en caso contrario.
+     */
+    public boolean validateToken(String token, UserDetails userDetails) {
+        try {
+            final String username = extractUsername(token);
+            boolean isValid = username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            if (!isValid) {
+                log.warn("Token JWT inválido o expirado para el usuario: {}", username);
+            }
+            return isValid;
+        } catch (JwtException | IllegalArgumentException e) {
+            log.error("Fallo crítico al procesar y validar el token JWT: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verifica si el token JWT ha superado su tiempo de vida configurado.
+     *
+     * @param token Cadena de texto que representa el token JWT.
+     * @return true si la fecha de expiración del token es anterior a la fecha actual; false si sigue activo.
      */
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
 
     /**
-     * Genera un nuevo token JWT a partir de los datos del usuario autenticado (UserDetails).
+     * Extrae específicamente la fecha y hora de expiración del token JWT.
      *
-     * @param userDetails Objeto UserDetails que contiene las credenciales y roles del usuario.
-     * @return Una cadena de texto (String) correspondiente al token JWT generado y firmado.
+     * @param token Cadena de texto que representa el token JWT.
+     * @return Objeto Date con el límite de validez temporal del token.
      */
-    public String generateToken(UserDetails userDetails) {
-        Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, userDetails.getUsername());
-    }
-
-    /**
-     * Construye y firma digitalmente el token JWT estableciendo los claims (datos), el subject (sujeto),
-     * la fecha de emisión y la fecha de expiración (vencimiento).
-     *
-     * @param claims Mapa (estructura de clave-valor) con información adicional a incluir en el payload.
-     * @param subject El identificador principal (username) del usuario.
-     * @return El token JWT compacto en formato String.
-     */
-    private String createToken(Map<String, Object> claims, String subject) {
-        return Jwts.builder()
-                .claims(claims)
-                .subject(subject)
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
-                .signWith(secretKey)
-                .compact();
-    }
-
-    /**
-     * Valida la integridad del token comprobando que el username coincida
-     * con el de UserDetails y que el token no se encuentre expirado (vencido).
-     *
-     * @param token El token JWT a validar.
-     * @param userDetails La información del usuario cargada en el sistema.
-     * @return true si el token es válido y pertenece al usuario, false en caso contrario.
-     */
-    public boolean validateToken(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    private Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
     }
 }
