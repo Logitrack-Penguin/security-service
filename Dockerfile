@@ -1,27 +1,29 @@
 # =====================================================================
-# DOCKERFILE PARA SECURITY-SERVICE (Logitrack)
+# DOCKERFILE MULTIETAPA - SECURITY-SERVICE (LogiTrack) - Java 25
 # =====================================================================
 
-# Etapa 1: Construcción (Build) utilizando Maven con JDK 17
-FROM maven:3.8.5-openjdk-17 AS build
+# Etapa 1: construcción con Maven y JDK 25
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
 
-# Copiar los archivos de configuración y dependencias del proyecto
+# Se copia primero el pom para aprovechar la caché de capas de Docker
 COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
+
 COPY src ./src
+RUN mvn -B -q clean package -DskipTests
 
-# Compilar y empaquetar el proyecto omitiendo las pruebas unitarias para agilizar
-RUN mvn clean package -DskipTests
-
-# Etapa 2: Ejecución (Runtime) con una imagen ligera de OpenJDK 17
-FROM openjdk:17-jdk-slim
+# Etapa 2: ejecución solo con el JRE 25 (sin código fuente ni Maven)
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 
-# Copiar el archivo .jar generado desde la etapa de construcción anterior
-COPY --from=build /app/target/security-service-0.0.1-SNAPSHOT.jar app.jar
+# Usuario sin privilegios para ejecutar la aplicación
+RUN groupadd --system app && useradd --system --gid app --no-create-home app
 
-# Exponer el puerto en el que corre el microservicio
+COPY --from=build /app/target/*.jar app.jar
+USER app
+
 EXPOSE 8081
 
-# Comando de ejecución para arrancar la aplicación Spring Boot dentro del contenedor
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Las credenciales (DB_PASSWORD, JWT_SECRET) NO van en la imagen: se inyectan como variables de entorno
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
