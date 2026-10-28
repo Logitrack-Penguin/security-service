@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.Set;
 import java.util.UUID;
@@ -28,7 +30,7 @@ public class Usuario {
     /** Identificador único universal (UUID) autogenerado para cada usuario registrado. */
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
+    @Column(updatable = false, nullable = false, length = 36)
     private UUID id;
 
     /** Nombre de usuario único para el inicio de sesión. */
