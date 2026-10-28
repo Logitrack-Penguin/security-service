@@ -20,11 +20,11 @@ import java.util.function.Function;
 /**
  * Componente (clase administrada por el contenedor de Spring) utilitario para la gestión integral de
  * JSON Web Tokens (JWT). Genera tokens firmados con HS256 que incluyen el subject (username), el claim
- * "userId" y el claim "roles", de modo que shipment-service y courier-service puedan autorizar
- * verificando únicamente la firma, sin consultar a security-service en cada solicitud.
+ * "userId", el claim "roles" y el emisor (iss), de modo que shipment-service y courier-service puedan
+ * autorizar verificando únicamente la firma y el emisor, sin consultar a security-service en cada solicitud.
  *
  * @author Elías Maciel Villalva
- * @version 2.0
+ * @version 2.1
  */
 @Slf4j
 @Component
@@ -41,6 +41,13 @@ public class JwtUtil {
     /** Tiempo de expiración (vencimiento) de los tokens en milisegundos (por defecto 1 hora). */
     @Value("${logitrack.jwt.expiration-ms:3600000}")
     private long jwtExpirationMs;
+
+    /**
+     * Emisor del token (claim "iss"). Los demás microservicios deben exigir este mismo valor
+     * al validar, para rechazar tokens firmados por otro emisor.
+     */
+    @Value("${logitrack.jwt.issuer:logitrack-security-service}")
+    private String issuer = "logitrack-security-service";
 
     /**
      * Decodifica la clave Base64 y construye la SecretKey utilizada para firmar y verificar tokens.
@@ -61,6 +68,7 @@ public class JwtUtil {
         List<String> roles = usuario.getRoles().stream().map(Rol::name).sorted().toList();
         Date ahora = new Date();
         return Jwts.builder()
+                .issuer(issuer)
                 .subject(usuario.getUsername())
                 .claim("userId", usuario.getId().toString())
                 .claim("roles", roles)
@@ -94,8 +102,9 @@ public class JwtUtil {
     }
 
     /**
-     * Analiza el token verificando su firma y su vigencia, y devuelve su payload.
-     * Lanza una JwtException si la firma no coincide, el token está mal formado o ya expiró.
+     * Analiza el token verificando su firma, su vigencia y su emisor, y devuelve su payload.
+     * Lanza una JwtException si la firma no coincide, el token está mal formado, ya expiró
+     * o fue emitido por otro emisor.
      *
      * @param token El token JWT firmado.
      * @return Los claims (carga útil) del token.
@@ -103,6 +112,7 @@ public class JwtUtil {
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
+                .requireIssuer(issuer)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

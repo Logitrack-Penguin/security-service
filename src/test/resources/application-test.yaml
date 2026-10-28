@@ -1,0 +1,27 @@
+# =====================================================================
+# PERFIL "test": se activa con @ActiveProfiles("test").
+# Permite correr la suite sin MySQL, sin Config Server y sin variables de entorno.
+# La clave JWT de acá es SOLO de prueba; nunca se usa fuera de los tests.
+# =====================================================================
+spring:
+  cloud:
+    config:
+      enabled: false
+  datasource:
+    url: jdbc:h2:mem:security_service_test;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+logitrack:
+  jwt:
+    secret: Y2xhdmUtZGUtcHJ1ZWJhLWRlLWFsLW1lbm9zLTMyLWJ5dGVzIQ==
+    expiration-ms: 60000
+  # ADMIN inicial para poder probar los endpoints que exigen ese rol.
+  bootstrap-admin:
+    username: admin
+    password: admin-de-prueba-123
+    email: admin@test.local
