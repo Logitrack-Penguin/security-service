@@ -25,7 +25,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Entity
 @Table(name = "usuarios")
-public class Usuario {
+public class Usuario extends EntidadAuditable {
 
     /** Identificador único universal (UUID) autogenerado para cada usuario registrado. */
     @Id
