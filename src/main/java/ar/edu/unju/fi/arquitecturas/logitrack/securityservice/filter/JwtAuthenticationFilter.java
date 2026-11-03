@@ -83,4 +83,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Continuar con el siguiente filtro en la cadena de ejecución.
         filterChain.doFilter(request, response);
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return request.getServletPath().startsWith("/health/");
+    }
 }

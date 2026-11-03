@@ -88,6 +88,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         // /error debe ser accesible para que Spring pueda renderizar sus páginas de error.
                         .requestMatchers("/error").permitAll()
+                        // Permite los healthcheck correspondientes desde el Docker compose via endpoints.
+                        .requestMatchers("/health/**").permitAll()
                         // Documentación OpenAPI / Swagger UI.
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // Cualquier otra petición HTTP requiere que el usuario esté autenticado.
