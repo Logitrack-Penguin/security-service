@@ -214,7 +214,7 @@ Ramas de desarrollo del módulo:
    git checkout develop
    ```
 
-2. Definir las variables de entorno (ver `.env.example`). Como mínimo `DB_PASSWORD` y `JWT_SECRET`, que no tienen valor por defecto a propósito.
+2. Definir las variables de entorno (ver `.env`). Como mínimo `DB_PASSWORD` y `JWT_SECRET`, que no tienen valor por defecto a propósito.
 
 3. Compilar el proyecto:
 
