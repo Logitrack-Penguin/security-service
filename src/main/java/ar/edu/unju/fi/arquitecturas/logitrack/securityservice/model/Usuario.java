@@ -30,6 +30,7 @@ public class Usuario extends EntidadAuditable {
     /** Identificador único universal (UUID) autogenerado para cada usuario registrado. */
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(updatable = false, nullable = false, length = 36)
     private UUID id;
 
