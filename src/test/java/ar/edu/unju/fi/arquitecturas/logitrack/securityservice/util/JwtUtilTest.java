@@ -66,4 +66,14 @@ class JwtUtilTest {
 
         assertFalse(jwtUtil.validateToken(token, userDetails));
     }
+
+    @Test
+    void tokenIncluyeDniSoloSiElUsuarioLoTiene() {
+        String sinDni = jwtUtil.generateToken(usuario);
+        assertNull(jwtUtil.extractClaim(sinDni, c -> c.get("dni", String.class)));
+
+        usuario.setDni("30111222");
+        String conDni = jwtUtil.generateToken(usuario);
+        assertEquals("30111222", jwtUtil.extractClaim(conDni, c -> c.get("dni", String.class)));
+    }
 }

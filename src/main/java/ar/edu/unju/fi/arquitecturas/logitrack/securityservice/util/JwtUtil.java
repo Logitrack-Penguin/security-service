@@ -67,11 +67,17 @@ public class JwtUtil {
     public String generateToken(Usuario usuario) {
         List<String> roles = usuario.getRoles().stream().map(Rol::name).sorted().toList();
         Date ahora = new Date();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .issuer(issuer)
                 .subject(usuario.getUsername())
                 .claim("userId", usuario.getId().toString())
-                .claim("roles", roles)
+                .claim("roles", roles);
+        // Solo los CLIENTE con datos de cliente tienen DNI: el frontend lo usa para mostrarles
+        // únicamente sus envíos.
+        if (usuario.getDni() != null) {
+            builder.claim("dni", usuario.getDni());
+        }
+        return builder
                 .issuedAt(ahora)
                 .expiration(new Date(ahora.getTime() + jwtExpirationMs))
                 .signWith(getSigningKey())

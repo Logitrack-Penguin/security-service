@@ -7,10 +7,17 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.UUID;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient;
 
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -37,6 +44,10 @@ class AuthControllerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    /** shipment-service no corre en los tests: se simula que el cliente todavía no existe. */
+    @MockitoBean
+    private ShipmentClienteClient shipmentClienteClient;
+
     /**
      * Arma el JSON de registro.
      *
@@ -45,9 +56,17 @@ class AuthControllerIntegrationTest {
      * @return Cuerpo JSON de la petición.
      */
     private String registroJson(String username, String rolesJson) {
+        when(shipmentClienteClient.obtener(anyString())).thenReturn(Optional.empty());
         String roles = rolesJson == null ? "" : ",\"roles\":" + rolesJson;
+        // Una cuenta CLIENTE necesita sus datos de cliente; el DNI se genera para que no se repita.
+        String cliente = rolesJson != null ? "" : ",\"dni\":\"" + dniUnico()
+                + "\",\"nombre\":\"Maria\",\"apellido\":\"Gomez\",\"telefono\":\"3881234567\"";
         return "{\"username\":\"" + username + "\",\"password\":\"password123\",\"email\":\""
-                + username + "@mail.com\"" + roles + "}";
+                + username + "@mail.com\"" + roles + cliente + "}";
+    }
+
+    private String dniUnico() {
+        return String.valueOf(ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000));
     }
 
     /**

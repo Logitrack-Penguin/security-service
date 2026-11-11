@@ -40,4 +40,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
      * @return true si el username ya se encuentra registrado, false en caso contrario.
      */
     boolean existsByUsername(String username);
+
+    boolean existsByDni(String dni);
 }

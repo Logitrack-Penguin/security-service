@@ -2,6 +2,7 @@ package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -49,4 +50,37 @@ public class RegistroRequest {
      * (ADMIN, CLIENTE o REPARTIDOR). Si no se envía ninguno, se asigna CLIENTE.
      */
     private Set<String> roles;
+
+    // ---------- Datos del cliente (obligatorios cuando la cuenta es CLIENTE) ----------
+    // Con ellos security-service crea (o vincula) el cliente en shipment-service y guarda el DNI
+    // en el usuario. Los formatos copian ClienteRequestDto de shipment-service.
+
+    /** DNI del cliente: 8 dígitos. */
+    @Pattern(regexp = "\\d{8}", message = "El DNI debe tener 8 dígitos")
+    private String dni;
+
+    /** Nombre del cliente: solo letras, entre 3 y 30 caracteres. */
+    @Size(min = 3, max = 30, message = "El nombre debe tener entre 3 y 30 caracteres")
+    @Pattern(regexp = "[\\p{L} ]+", message = "El nombre solo puede contener letras")
+    private String nombre;
+
+    /** Apellido del cliente: solo letras. */
+    @Pattern(regexp = "[\\p{L} ]+", message = "El apellido solo puede contener letras")
+    private String apellido;
+
+    /** Teléfono del cliente: 10 dígitos. */
+    @Pattern(regexp = "\\d{10}", message = "El teléfono debe tener 10 dígitos")
+    private String telefono;
+
+    /**
+     * Registro sin datos de cliente (por ejemplo, un REPARTIDOR creado por un administrador).
+     *
+     * @param username Nombre de usuario.
+     * @param password Contraseña en texto plano.
+     * @param email    Correo electrónico.
+     * @param roles    Roles solicitados (puede ser nulo).
+     */
+    public RegistroRequest(String username, String password, String email, Set<String> roles) {
+        this(username, password, email, roles, null, null, null, null);
+    }
 }
