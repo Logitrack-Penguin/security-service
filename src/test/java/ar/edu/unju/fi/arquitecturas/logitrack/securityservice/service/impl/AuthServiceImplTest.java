@@ -3,6 +3,8 @@ package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.service.impl;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipment;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipmentRequest;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.JwtResponse;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.LoginRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.RegistroRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.UserResponse;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Rol;
@@ -17,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -291,5 +294,99 @@ class AuthServiceImplTest {
 
         assertEquals("30111222", creado.getDni());
         verifyNoInteractions(shipmentClienteClient);
+    }
+
+    // ---------- Login: DNI de las cuentas CLIENTE anteriores a LT4-40 ----------
+
+    /**
+     * Simula un login correcto de un usuario existente.
+     *
+     * @param usuario Usuario que devuelve el repositorio.
+     */
+    private void simularLogin(Usuario usuario) {
+        Authentication autenticado = mock(Authentication.class);
+        when(autenticado.getName()).thenReturn(usuario.getUsername());
+        when(authenticationManager.authenticate(any())).thenReturn(autenticado);
+        when(usuarioRepository.findByUsername(usuario.getUsername())).thenReturn(Optional.of(usuario));
+        when(jwtUtil.generateToken(usuario)).thenReturn("TOKEN");
+    }
+
+    private Usuario usuario(Rol rol, String dni) {
+        Usuario usuario = new Usuario();
+        usuario.setId(UUID.randomUUID());
+        usuario.setUsername("maria");
+        usuario.setEmail("maria@mail.com");
+        usuario.setRoles(Set.of(rol));
+        usuario.setDni(dni);
+        return usuario;
+    }
+
+    private LoginRequest login() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("maria");
+        request.setPassword("password123");
+        return request;
+    }
+
+    /** Un CLIENTE sin DNI se vincula al cliente de shipment con su email antes de generar el token. */
+    @Test
+    void loginClienteSinDniCompletaElDniPorEmail() {
+        Usuario usuario = usuario(Rol.CLIENTE, null);
+        simularLogin(usuario);
+        when(shipmentClienteClient.buscarPorEmail("maria@mail.com"))
+                .thenReturn(Optional.of(new ClienteShipment("30111222", "MARIA@mail.com")));
+        when(usuarioRepository.existsByDni("30111222")).thenReturn(false);
+
+        JwtResponse respuesta = authService.login(login());
+
+        assertEquals("TOKEN", respuesta.getToken());
+        assertEquals("30111222", usuario.getDni());
+        verify(usuarioRepository).save(usuario);
+        // El token se genera después de completar el DNI, así que ya lo incluye.
+        var orden = inOrder(usuarioRepository, jwtUtil);
+        orden.verify(usuarioRepository).save(usuario);
+        orden.verify(jwtUtil).generateToken(usuario);
+    }
+
+    /** Si no hay cliente con ese email (o shipment no responde), el login sigue sin DNI. */
+    @Test
+    void loginClienteSinClienteEnShipmentSigueSinDni() {
+        Usuario usuario = usuario(Rol.CLIENTE, null);
+        simularLogin(usuario);
+        when(shipmentClienteClient.buscarPorEmail("maria@mail.com")).thenReturn(Optional.empty());
+
+        authService.login(login());
+
+        assertNull(usuario.getDni());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Si el DNI del cliente ya es de otra cuenta, no se vincula. */
+    @Test
+    void loginClienteConDniDeOtraCuentaNoLoVincula() {
+        Usuario usuario = usuario(Rol.CLIENTE, null);
+        simularLogin(usuario);
+        when(shipmentClienteClient.buscarPorEmail("maria@mail.com"))
+                .thenReturn(Optional.of(new ClienteShipment("30111222", "maria@mail.com")));
+        when(usuarioRepository.existsByDni("30111222")).thenReturn(true);
+
+        authService.login(login());
+
+        assertNull(usuario.getDni());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Un CLIENTE que ya tiene DNI, o un usuario que no es CLIENTE, no consulta shipment. */
+    @Test
+    void loginConDniONoClienteNoConsultaShipment() {
+        simularLogin(usuario(Rol.CLIENTE, "30111222"));
+        authService.login(login());
+
+        Usuario admin = usuario(Rol.ADMIN, null);
+        simularLogin(admin);
+        authService.login(login());
+
+        verifyNoInteractions(shipmentClienteClient);
+        verify(usuarioRepository, never()).save(any());
     }
 }
