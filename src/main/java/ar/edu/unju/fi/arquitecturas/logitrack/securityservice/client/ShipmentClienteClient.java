@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -99,6 +100,30 @@ public class ShipmentClienteClient {
      *                                 (400 datos inválidos, 409 DNI/teléfono/email repetido), o 503
      *                                 si no responde.
      */
+    /**
+     * Busca el cliente con ese email en shipment-service. Se usa al iniciar sesión para completar el
+     * DNI de las cuentas CLIENTE creadas antes de que el DNI viajara en el token (LT4-40).
+     * <p>
+     * Nunca lanza excepción: si shipment-service no responde, devuelve vacío para no impedir el login.
+     * </p>
+     *
+     * @param email Email del usuario.
+     * @return El cliente con ese email, o vacío si no hay ninguno o shipment-service no respondió.
+     */
+    public Optional<ClienteShipment> buscarPorEmail(String email) {
+        try {
+            List<ClienteShipment> clientes = restClient.get()
+                    .uri(urlClientes() + "?email={email}", email)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<List<ClienteShipment>>() {
+                    });
+            return clientes == null ? Optional.empty() : clientes.stream().findFirst();
+        } catch (RestClientException | ResponseStatusException e) {
+            log.warn("No se pudo buscar el cliente por email en shipment-service: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     public void crear(ClienteShipmentRequest request) {
         try {
             restClient.post()

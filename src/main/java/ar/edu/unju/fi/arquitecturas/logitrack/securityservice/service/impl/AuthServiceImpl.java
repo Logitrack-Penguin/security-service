@@ -63,7 +63,7 @@ public class AuthServiceImpl implements AuthService {
      * {@inheritDoc}
      */
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public JwtResponse login(LoginRequest request) {
         // Lanza AuthenticationException (traducida a 401) si las credenciales no son correctas.
         Authentication authentication = authenticationManager.authenticate(
@@ -71,6 +71,7 @@ public class AuthServiceImpl implements AuthService {
 
         Usuario usuario = usuarioRepository.findByUsername(authentication.getName())
                 .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
+        completarDniDeCliente(usuario);
 
         String jwt = jwtUtil.generateToken(usuario);
         List<String> roles = usuario.getRoles().stream().map(Rol::name).sorted().toList();
@@ -126,6 +127,31 @@ public class AuthServiceImpl implements AuthService {
      *                                 o pertenece a un cliente con otro email; 503 si shipment-service
      *                                 no responde (en ese caso no se crea el usuario).
      */
+    /**
+     * Las cuentas CLIENTE creadas antes de LT4-40 no tienen DNI, y sin DNI en el token shipment-service
+     * no les muestra ningún envío. Al iniciar sesión se busca en shipment el cliente con el mismo
+     * email (el mismo criterio que vincula una cuenta nueva con un cliente existente) y se guarda su
+     * DNI, que va en el token desde este mismo login. Si no hay cliente con ese email, si el DNI ya
+     * es de otra cuenta o si shipment no responde, el login sigue igual, sin DNI.
+     *
+     * @param usuario Usuario que acaba de autenticarse.
+     */
+    private void completarDniDeCliente(Usuario usuario) {
+        if (usuario.getDni() != null || !usuario.getRoles().contains(Rol.CLIENTE)) {
+            return;
+        }
+        shipmentClienteClient.buscarPorEmail(usuario.getEmail())
+                .filter(cliente -> mismoEmail(cliente.email(), usuario.getEmail()))
+                .map(ClienteShipment::dni)
+                .filter(dni -> !usuarioRepository.existsByDni(dni))
+                .ifPresent(dni -> {
+                    usuario.setDni(dni);
+                    usuarioRepository.save(usuario);
+                    log.info("Cuenta '{}' vinculada al cliente con DNI {} al iniciar sesión",
+                            usuario.getUsername(), dni);
+                });
+    }
+
     private String vincularCliente(RegistroRequest request) {
         List<String> faltantes = new ArrayList<>();
         if (estaVacio(request.getDni())) faltantes.add("dni: El DNI es obligatorio para una cuenta de cliente");
