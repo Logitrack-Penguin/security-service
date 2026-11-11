@@ -33,6 +33,9 @@ public class UserResponse {
     /** Nombres de los roles asignados (por ejemplo, ADMIN, CLIENTE, REPARTIDOR). */
     private Set<String> roles;
 
+    /** DNI del usuario, o {@code null} si no tiene uno cargado. */
+    private String dni;
+
     /**
      * Convierte una entidad Usuario en su representación pública.
      *
@@ -41,6 +44,7 @@ public class UserResponse {
      */
     public static UserResponse from(Usuario usuario) {
         Set<String> roles = usuario.getRoles().stream().map(Rol::name).collect(Collectors.toSet());
-        return new UserResponse(usuario.getId().toString(), usuario.getUsername(), usuario.getEmail(), roles);
+        return new UserResponse(usuario.getId().toString(), usuario.getUsername(), usuario.getEmail(), roles,
+                usuario.getDni());
     }
 }

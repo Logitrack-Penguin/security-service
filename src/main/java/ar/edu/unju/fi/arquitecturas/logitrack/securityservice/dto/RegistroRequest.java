@@ -2,6 +2,7 @@ package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -49,4 +50,23 @@ public class RegistroRequest {
      * (ADMIN, CLIENTE o REPARTIDOR). Si no se envía ninguno, se asigna CLIENTE.
      */
     private Set<String> roles;
+
+    /**
+     * DNI de 8 dígitos. Es obligatorio cuando se pide el rol REPARTIDOR (así el token lo lleva y
+     * courier sabe qué repartidor es el usuario logueado); en los demás casos es opcional.
+     */
+    @Pattern(regexp = "^\\d{8}$", message = "El DNI debe tener 8 dígitos")
+    private String dni;
+
+    /**
+     * Constructor sin DNI, para los registros que no lo necesitan.
+     *
+     * @param username Nombre de usuario.
+     * @param password Contraseña en texto plano.
+     * @param email Correo electrónico.
+     * @param roles Roles solicitados (puede ser nulo).
+     */
+    public RegistroRequest(String username, String password, String email, Set<String> roles) {
+        this(username, password, email, roles, null);
+    }
 }

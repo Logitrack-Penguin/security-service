@@ -85,9 +85,19 @@ public class AuthServiceImpl implements AuthService {
 
         Set<Rol> roles = resolverRoles(parseRoles(request.getRoles()), solicitanteEsAdmin);
 
+        String dni = request.getDni() == null || request.getDni().isBlank() ? null : request.getDni().trim();
+        if (dni == null && roles.contains(Rol.REPARTIDOR)) {
+            // Sin DNI, courier no podría saber qué repartidor es este usuario (errores 3 y 4 de LT4-40).
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dni: es obligatorio para un REPARTIDOR");
+        }
+        if (dni != null && usuarioRepository.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El DNI ya está asociado a otro usuario");
+        }
+
         Usuario usuario = new Usuario();
         usuario.setUsername(request.getUsername());
         usuario.setEmail(request.getEmail());
+        usuario.setDni(dni);
         usuario.setPassword(encoder.encode(request.getPassword()));
         usuario.setRoles(roles);
         Usuario guardado = usuarioRepository.save(usuario);

@@ -42,6 +42,13 @@ public class Usuario extends EntidadAuditable {
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
+    /**
+     * DNI (8 dígitos) de la persona detrás del usuario. Vincula el login con el Repartidor (courier)
+     * o el Cliente (shipment), que se identifican por DNI. Es opcional: el ADMIN inicial no lo tiene.
+     */
+    @Column(unique = true, length = 8)
+    private String dni;
+
     /** Contraseña protegida mediante un algoritmo de cifrado irreversible (BCrypt). */
     @Column(nullable = false)
     private String password;

@@ -112,9 +112,48 @@ class AuthServiceImplTest {
         when(encoder.encode(any())).thenReturn("HASH");
         simularGuardado();
 
-        UserResponse creado = authService.registrar(request(Set.of("repartidor")), true);
+        RegistroRequest req = request(Set.of("repartidor"));
+        req.setDni("30111222");
+
+        UserResponse creado = authService.registrar(req, true);
 
         assertEquals(Set.of(Rol.REPARTIDOR.name()), creado.getRoles());
+        assertEquals("30111222", creado.getDni());
+    }
+
+    /** Un REPARTIDOR sin DNI devuelve 400: courier no podría saber quién es. */
+    @Test
+    void repartidorSinDniDevuelve400() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(request(Set.of("REPARTIDOR")), true));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Un DNI ya asociado a otro usuario devuelve 409. */
+    @Test
+    void dniDuplicadoDevuelve409() {
+        when(usuarioRepository.existsByDni("30111222")).thenReturn(true);
+        RegistroRequest req = request(Set.of("REPARTIDOR"));
+        req.setDni("30111222");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(req, true));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Un CLIENTE puede registrarse sin DNI (sigue siendo opcional). */
+    @Test
+    void clienteSinDniSeRegistra() {
+        when(encoder.encode(any())).thenReturn("HASH");
+        simularGuardado();
+
+        UserResponse creado = authService.registrar(request(null), false);
+
+        assertNull(creado.getDni());
     }
 
     /** Un nombre de rol inexistente devuelve 400. */
