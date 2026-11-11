@@ -41,11 +41,5 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
      */
     boolean existsByUsername(String username);
 
-    /**
-     * Verifica la existencia previa de un DNI en la base de datos.
-     *
-     * @param dni DNI a validar.
-     * @return true si el DNI ya pertenece a otro usuario, false en caso contrario.
-     */
     boolean existsByDni(String dni);
-}
+}

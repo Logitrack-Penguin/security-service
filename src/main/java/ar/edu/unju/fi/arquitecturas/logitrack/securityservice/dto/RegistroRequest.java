@@ -51,22 +51,36 @@ public class RegistroRequest {
      */
     private Set<String> roles;
 
-    /**
-     * DNI de 8 dígitos. Es obligatorio cuando se pide el rol REPARTIDOR (así el token lo lleva y
-     * courier sabe qué repartidor es el usuario logueado); en los demás casos es opcional.
-     */
-    @Pattern(regexp = "^\\d{8}$", message = "El DNI debe tener 8 dígitos")
+    // ---------- Datos del cliente (obligatorios cuando la cuenta es CLIENTE) ----------
+    // Con ellos security-service crea (o vincula) el cliente en shipment-service y guarda el DNI
+    // en el usuario. Los formatos copian ClienteRequestDto de shipment-service.
+
+    /** DNI del cliente: 8 dígitos. */
+    @Pattern(regexp = "\\d{8}", message = "El DNI debe tener 8 dígitos")
     private String dni;
 
+    /** Nombre del cliente: solo letras, entre 3 y 30 caracteres. */
+    @Size(min = 3, max = 30, message = "El nombre debe tener entre 3 y 30 caracteres")
+    @Pattern(regexp = "[\\p{L} ]+", message = "El nombre solo puede contener letras")
+    private String nombre;
+
+    /** Apellido del cliente: solo letras. */
+    @Pattern(regexp = "[\\p{L} ]+", message = "El apellido solo puede contener letras")
+    private String apellido;
+
+    /** Teléfono del cliente: 10 dígitos. */
+    @Pattern(regexp = "\\d{10}", message = "El teléfono debe tener 10 dígitos")
+    private String telefono;
+
     /**
-     * Constructor sin DNI, para los registros que no lo necesitan.
+     * Registro sin datos de cliente (por ejemplo, un REPARTIDOR creado por un administrador).
      *
      * @param username Nombre de usuario.
      * @param password Contraseña en texto plano.
-     * @param email Correo electrónico.
-     * @param roles Roles solicitados (puede ser nulo).
+     * @param email    Correo electrónico.
+     * @param roles    Roles solicitados (puede ser nulo).
      */
     public RegistroRequest(String username, String password, String email, Set<String> roles) {
-        this(username, password, email, roles, null);
+        this(username, password, email, roles, null, null, null, null);
     }
 }

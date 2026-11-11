@@ -1,5 +1,8 @@
 package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.service.impl;
 
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipment;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipmentRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.JwtResponse;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.LoginRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.RegistroRequest;
@@ -21,9 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -49,6 +55,9 @@ public class AuthServiceImpl implements AuthService {
 
     /** Utilidad para emitir los tokens JWT firmados. */
     private final JwtUtil jwtUtil;
+
+    /** Crea o busca el cliente en shipment-service al registrar una cuenta CLIENTE. */
+    private final ShipmentClienteClient shipmentClienteClient;
 
     /**
      * {@inheritDoc}
@@ -84,26 +93,98 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Set<Rol> roles = resolverRoles(parseRoles(request.getRoles()), solicitanteEsAdmin);
-
-        String dni = request.getDni() == null || request.getDni().isBlank() ? null : request.getDni().trim();
-        if (dni == null && roles.contains(Rol.REPARTIDOR)) {
-            // Sin DNI, courier no podría saber qué repartidor es este usuario (errores 3 y 4 de LT4-40).
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dni: es obligatorio para un REPARTIDOR");
-        }
-        if (dni != null && usuarioRepository.existsByDni(dni)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El DNI ya está asociado a otro usuario");
+        // El DNI vincula la cuenta con su cliente (shipment) o con su ficha de repartidor (courier).
+        String dni;
+        if (roles.contains(Rol.CLIENTE)) {
+            dni = vincularCliente(request);
+        } else if (roles.contains(Rol.REPARTIDOR)) {
+            dni = dniDeRepartidor(request);
+        } else {
+            dni = null;
         }
 
         Usuario usuario = new Usuario();
         usuario.setUsername(request.getUsername());
         usuario.setEmail(request.getEmail());
-        usuario.setDni(dni);
         usuario.setPassword(encoder.encode(request.getPassword()));
         usuario.setRoles(roles);
+        usuario.setDni(dni);
         Usuario guardado = usuarioRepository.save(usuario);
 
         log.info("Usuario '{}' registrado con roles {}", guardado.getUsername(), roles);
         return UserResponse.from(guardado);
+    }
+
+    /**
+     * Crea el cliente en shipment-service, o lo vincula si ya existe con el mismo email, y devuelve
+     * su DNI. Se llama después de validar username y email, para no dejar clientes huérfanos si el
+     * registro igual iba a fallar.
+     *
+     * @param request Petición de registro con los datos del cliente.
+     * @return El DNI que queda guardado en el usuario.
+     * @throws ResponseStatusException 400 si faltan datos del cliente; 409 si el DNI ya tiene cuenta
+     *                                 o pertenece a un cliente con otro email; 503 si shipment-service
+     *                                 no responde (en ese caso no se crea el usuario).
+     */
+    private String vincularCliente(RegistroRequest request) {
+        List<String> faltantes = new ArrayList<>();
+        if (estaVacio(request.getDni())) faltantes.add("dni: El DNI es obligatorio para una cuenta de cliente");
+        if (estaVacio(request.getNombre())) faltantes.add("nombre: El nombre es obligatorio para una cuenta de cliente");
+        if (estaVacio(request.getApellido())) faltantes.add("apellido: El apellido es obligatorio para una cuenta de cliente");
+        if (estaVacio(request.getTelefono())) faltantes.add("telefono: El teléfono es obligatorio para una cuenta de cliente");
+        if (!faltantes.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join("; ", faltantes));
+        }
+
+        String dni = request.getDni().trim();
+        if (usuarioRepository.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese DNI ya tiene una cuenta");
+        }
+
+        Optional<ClienteShipment> existente = shipmentClienteClient.obtener(dni);
+        if (existente.isPresent()) {
+            // Cliente cargado antes (por un ADMIN o en los datos iniciales): solo se vincula si es
+            // la misma persona, es decir, si tiene el mismo email que la cuenta.
+            if (!mismoEmail(existente.get().email(), request.getEmail())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese DNI ya está registrado con otro email");
+            }
+            log.info("Cuenta vinculada al cliente existente con DNI {}", dni);
+        } else {
+            shipmentClienteClient.crear(new ClienteShipmentRequest(dni, request.getNombre().trim(),
+                    request.getApellido().trim(), request.getEmail().trim(), request.getTelefono().trim()));
+            log.info("Cliente con DNI {} creado en shipment-service", dni);
+        }
+        return dni;
+    }
+
+    /**
+     * Valida el DNI de una cuenta REPARTIDOR. La ficha del repartidor la crea antes el frontend en
+     * courier-service (alta unificada); acá solo se guarda el mismo DNI para que viaje en el token
+     * y courier sepa qué repartidor es el usuario logueado (errores 3 y 4 de LT4-40).
+     *
+     * @param request Petición de registro.
+     * @return El DNI que queda guardado en el usuario.
+     * @throws ResponseStatusException 400 si falta el DNI; 409 si ya tiene una cuenta.
+     */
+    private String dniDeRepartidor(RegistroRequest request) {
+        if (estaVacio(request.getDni())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "dni: El DNI es obligatorio para una cuenta de repartidor");
+        }
+        String dni = request.getDni().trim();
+        if (usuarioRepository.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese DNI ya tiene una cuenta");
+        }
+        return dni;
+    }
+
+    private static boolean estaVacio(String valor) {
+        return valor == null || valor.isBlank();
+    }
+
+    private static boolean mismoEmail(String a, String b) {
+        return a != null && b != null
+                && a.trim().toLowerCase(Locale.ROOT).equals(b.trim().toLowerCase(Locale.ROOT));
     }
 
     /**

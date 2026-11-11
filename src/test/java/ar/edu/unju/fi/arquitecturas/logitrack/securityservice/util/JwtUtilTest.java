@@ -49,17 +49,6 @@ class JwtUtilTest {
         assertTrue(jwtUtil.validateToken(token, userDetails));
     }
 
-    /** El claim "dni" solo aparece si el usuario tiene DNI. */
-    @Test
-    void claimDniSoloSiElUsuarioTieneDni() {
-        assertNull(jwtUtil.extractClaim(jwtUtil.generateToken(usuario), c -> c.get("dni", String.class)));
-
-        usuario.setDni("30111222");
-        String token = jwtUtil.generateToken(usuario);
-
-        assertEquals("30111222", jwtUtil.extractClaim(token, c -> c.get("dni", String.class)));
-    }
-
     /** Si se modifica la firma del token, la validación debe fallar (integridad). */
     @Test
     void tokenAlteradoEsRechazado() {
@@ -76,5 +65,15 @@ class JwtUtilTest {
         String token = jwtUtil.generateToken(usuario);
 
         assertFalse(jwtUtil.validateToken(token, userDetails));
+    }
+
+    @Test
+    void tokenIncluyeDniSoloSiElUsuarioLoTiene() {
+        String sinDni = jwtUtil.generateToken(usuario);
+        assertNull(jwtUtil.extractClaim(sinDni, c -> c.get("dni", String.class)));
+
+        usuario.setDni("30111222");
+        String conDni = jwtUtil.generateToken(usuario);
+        assertEquals("30111222", jwtUtil.extractClaim(conDni, c -> c.get("dni", String.class)));
     }
 }

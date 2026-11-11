@@ -1,5 +1,8 @@
 package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.service.impl;
 
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipment;
+import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.client.ShipmentClienteClient.ClienteShipmentRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.RegistroRequest;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.dto.UserResponse;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Rol;
@@ -17,6 +20,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -50,6 +54,10 @@ class AuthServiceImplTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    /** Cliente simulado de shipment-service. */
+    @Mock
+    private ShipmentClienteClient shipmentClienteClient;
+
     /** Servicio bajo prueba, con los mocks inyectados. */
     @InjectMocks
     private AuthServiceImpl authService;
@@ -62,6 +70,16 @@ class AuthServiceImplTest {
      */
     private RegistroRequest request(Set<String> roles) {
         return new RegistroRequest("maria", "password123", "maria@mail.com", roles);
+    }
+
+    /**
+     * Crea un RegistroRequest de una cuenta CLIENTE, con sus datos de cliente.
+     *
+     * @return La petición de registro.
+     */
+    private RegistroRequest requestCliente() {
+        return new RegistroRequest("maria", "password123", "maria@mail.com", null,
+                "30111222", "María", "Gómez", "3881234567");
     }
 
     /** Simula que el repositorio devuelve el usuario guardado con un id asignado. */
@@ -77,9 +95,10 @@ class AuthServiceImplTest {
     @Test
     void registrarSinRolesAsignaClienteYCifraPassword() {
         when(encoder.encode("password123")).thenReturn("HASH");
+        when(shipmentClienteClient.obtener("30111222")).thenReturn(Optional.empty());
         simularGuardado();
 
-        UserResponse creado = authService.registrar(request(null), false);
+        UserResponse creado = authService.registrar(requestCliente(), false);
 
         ArgumentCaptor<Usuario> captor = ArgumentCaptor.forClass(Usuario.class);
         verify(usuarioRepository).save(captor.capture());
@@ -145,17 +164,6 @@ class AuthServiceImplTest {
         verify(usuarioRepository, never()).save(any());
     }
 
-    /** Un CLIENTE puede registrarse sin DNI (sigue siendo opcional). */
-    @Test
-    void clienteSinDniSeRegistra() {
-        when(encoder.encode(any())).thenReturn("HASH");
-        simularGuardado();
-
-        UserResponse creado = authService.registrar(request(null), false);
-
-        assertNull(creado.getDni());
-    }
-
     /** Un nombre de rol inexistente devuelve 400. */
     @Test
     void rolInexistenteDevuelve400() {
@@ -186,5 +194,102 @@ class AuthServiceImplTest {
                 () -> authService.registrar(request(null), false));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    // ---------------- Datos del cliente (cuenta CLIENTE) ----------------
+
+    /** Si el cliente no existe en shipment, se crea con los datos del registro y se guarda el DNI. */
+    @Test
+    void registroClienteCreaElClienteEnShipmentYGuardaElDni() {
+        when(encoder.encode(any())).thenReturn("HASH");
+        when(shipmentClienteClient.obtener("30111222")).thenReturn(Optional.empty());
+        simularGuardado();
+
+        UserResponse creado = authService.registrar(requestCliente(), false);
+
+        verify(shipmentClienteClient).crear(new ClienteShipmentRequest(
+                "30111222", "María", "Gómez", "maria@mail.com", "3881234567"));
+        assertEquals("30111222", creado.getDni());
+    }
+
+    /** Si el cliente ya existe con el mismo email (sin importar mayúsculas), se vincula sin crearlo. */
+    @Test
+    void registroClienteExistenteConMismoEmailSoloVincula() {
+        when(encoder.encode(any())).thenReturn("HASH");
+        when(shipmentClienteClient.obtener("30111222"))
+                .thenReturn(Optional.of(new ClienteShipment("30111222", "MARIA@mail.com")));
+        simularGuardado();
+
+        UserResponse creado = authService.registrar(requestCliente(), false);
+
+        verify(shipmentClienteClient, never()).crear(any());
+        assertEquals("30111222", creado.getDni());
+    }
+
+    /** Un DNI de un cliente con otro email devuelve 409 y no se crea la cuenta. */
+    @Test
+    void registroClienteConDniDeOtraPersonaDevuelve409() {
+        when(shipmentClienteClient.obtener("30111222"))
+                .thenReturn(Optional.of(new ClienteShipment("30111222", "otra@mail.com")));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(requestCliente(), false));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Un DNI que ya tiene cuenta devuelve 409 sin llamar a shipment. */
+    @Test
+    void registroClienteConDniConCuentaDevuelve409() {
+        when(usuarioRepository.existsByDni("30111222")).thenReturn(true);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(requestCliente(), false));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verifyNoInteractions(shipmentClienteClient);
+    }
+
+    /** Si shipment-service no responde, el registro falla con 503 y no se guarda el usuario. */
+    @Test
+    void registroClienteConShipmentCaidoDevuelve503YNoGuarda() {
+        when(shipmentClienteClient.obtener("30111222"))
+                .thenThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "No disponible"));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(requestCliente(), false));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Una cuenta CLIENTE sin sus datos de cliente devuelve 400 con un mensaje por campo. */
+    @Test
+    void registroClienteSinDatosDeClienteDevuelve400() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(request(null), false));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason().contains("dni:"));
+        assertTrue(ex.getReason().contains("telefono:"));
+        verifyNoInteractions(shipmentClienteClient);
+    }
+
+    /**
+     * Un REPARTIDOR creado por un ADMIN no necesita los datos de cliente ni toca shipment-service,
+     * pero sí su DNI (LT4-40: lo vincula con su ficha de courier).
+     */
+    @Test
+    void repartidorNoNecesitaDatosDeCliente() {
+        when(encoder.encode(any())).thenReturn("HASH");
+        simularGuardado();
+        RegistroRequest req = request(Set.of("REPARTIDOR"));
+        req.setDni("30111222");
+
+        UserResponse creado = authService.registrar(req, true);
+
+        assertEquals("30111222", creado.getDni());
+        verifyNoInteractions(shipmentClienteClient);
     }
 }

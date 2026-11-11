@@ -3,7 +3,6 @@ package ar.edu.unju.fi.arquitecturas.logitrack.securityservice.util;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Rol;
 import ar.edu.unju.fi.arquitecturas.logitrack.securityservice.model.Usuario;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -68,13 +67,14 @@ public class JwtUtil {
     public String generateToken(Usuario usuario) {
         List<String> roles = usuario.getRoles().stream().map(Rol::name).sorted().toList();
         Date ahora = new Date();
-        JwtBuilder builder = Jwts.builder()
+        var builder = Jwts.builder()
                 .issuer(issuer)
                 .subject(usuario.getUsername())
                 .claim("userId", usuario.getId().toString())
                 .claim("roles", roles);
+        // Solo los CLIENTE con datos de cliente tienen DNI: el frontend lo usa para mostrarles
+        // únicamente sus envíos.
         if (usuario.getDni() != null) {
-            // El gateway lo reenvía como X-User-Dni para que cada servicio sepa quién es el usuario.
             builder.claim("dni", usuario.getDni());
         }
         return builder

@@ -33,7 +33,7 @@ public class UserResponse {
     /** Nombres de los roles asignados (por ejemplo, ADMIN, CLIENTE, REPARTIDOR). */
     private Set<String> roles;
 
-    /** DNI del usuario, o {@code null} si no tiene uno cargado. */
+    /** DNI del cliente vinculado; null si la cuenta no es de un cliente. */
     private String dni;
 
     /**
