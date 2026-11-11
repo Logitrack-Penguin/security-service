@@ -145,9 +145,51 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/auth/register")
                         .header("Authorization", "Bearer " + tokenAdmin)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registroJson(usernameUnico(), "[\"REPARTIDOR\"]")))
+                        .content(registroRepartidorJson(usernameUnico(), "40111222")))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.roles[0]").value("REPARTIDOR"));
+                .andExpect(jsonPath("$.roles[0]").value("REPARTIDOR"))
+                .andExpect(jsonPath("$.dni").value("40111222"));
+    }
+
+    /** El token de un REPARTIDOR lleva su DNI en el claim "dni" (el gateway lo reenvía como X-User-Dni). */
+    @Test
+    void tokenDeRepartidorLlevaDni() throws Exception {
+        String tokenAdmin = login("admin", "admin-de-prueba-123");
+        String username = usernameUnico();
+        mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registroRepartidorJson(username, "40222333")))
+                .andExpect(status().isCreated());
+
+        String token = login(username, "password123");
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(token.split("\\.")[1]),
+                java.nio.charset.StandardCharsets.UTF_8);
+        org.junit.jupiter.api.Assertions.assertEquals("40222333", JsonPath.read(payload, "$.dni"));
+    }
+
+    /** Un DNI que no tiene 8 dígitos devuelve 400. */
+    @Test
+    void dniInvalidoDevuelve400() throws Exception {
+        String tokenAdmin = login("admin", "admin-de-prueba-123");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .header("Authorization", "Bearer " + tokenAdmin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registroRepartidorJson(usernameUnico(), "123")))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Arma el JSON de registro de un REPARTIDOR con su DNI.
+     *
+     * @param username Nombre de usuario.
+     * @param dni DNI del repartidor.
+     * @return Cuerpo JSON de la petición.
+     */
+    private String registroRepartidorJson(String username, String dni) {
+        return "{\"username\":\"" + username + "\",\"password\":\"password123\",\"email\":\""
+                + username + "@mail.com\",\"roles\":[\"REPARTIDOR\"],\"dni\":\"" + dni + "\"}";
     }
 
     /** Credenciales incorrectas devuelven 401. */

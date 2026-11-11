@@ -93,8 +93,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Set<Rol> roles = resolverRoles(parseRoles(request.getRoles()), solicitanteEsAdmin);
-        // Una cuenta CLIENTE queda vinculada a su cliente de shipment-service por el DNI.
-        String dni = roles.contains(Rol.CLIENTE) ? vincularCliente(request) : null;
+        // El DNI vincula la cuenta con su cliente (shipment) o con su ficha de repartidor (courier).
+        String dni;
+        if (roles.contains(Rol.CLIENTE)) {
+            dni = vincularCliente(request);
+        } else if (roles.contains(Rol.REPARTIDOR)) {
+            dni = dniDeRepartidor(request);
+        } else {
+            dni = null;
+        }
 
         Usuario usuario = new Usuario();
         usuario.setUsername(request.getUsername());
@@ -146,6 +153,27 @@ public class AuthServiceImpl implements AuthService {
             shipmentClienteClient.crear(new ClienteShipmentRequest(dni, request.getNombre().trim(),
                     request.getApellido().trim(), request.getEmail().trim(), request.getTelefono().trim()));
             log.info("Cliente con DNI {} creado en shipment-service", dni);
+        }
+        return dni;
+    }
+
+    /**
+     * Valida el DNI de una cuenta REPARTIDOR. La ficha del repartidor la crea antes el frontend en
+     * courier-service (alta unificada); acá solo se guarda el mismo DNI para que viaje en el token
+     * y courier sepa qué repartidor es el usuario logueado (errores 3 y 4 de LT4-40).
+     *
+     * @param request Petición de registro.
+     * @return El DNI que queda guardado en el usuario.
+     * @throws ResponseStatusException 400 si falta el DNI; 409 si ya tiene una cuenta.
+     */
+    private String dniDeRepartidor(RegistroRequest request) {
+        if (estaVacio(request.getDni())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "dni: El DNI es obligatorio para una cuenta de repartidor");
+        }
+        String dni = request.getDni().trim();
+        if (usuarioRepository.existsByDni(dni)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Ese DNI ya tiene una cuenta");
         }
         return dni;
     }

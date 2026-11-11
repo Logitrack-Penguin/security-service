@@ -131,9 +131,37 @@ class AuthServiceImplTest {
         when(encoder.encode(any())).thenReturn("HASH");
         simularGuardado();
 
-        UserResponse creado = authService.registrar(request(Set.of("repartidor")), true);
+        RegistroRequest req = request(Set.of("repartidor"));
+        req.setDni("30111222");
+
+        UserResponse creado = authService.registrar(req, true);
 
         assertEquals(Set.of(Rol.REPARTIDOR.name()), creado.getRoles());
+        assertEquals("30111222", creado.getDni());
+    }
+
+    /** Un REPARTIDOR sin DNI devuelve 400: courier no podría saber quién es. */
+    @Test
+    void repartidorSinDniDevuelve400() {
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(request(Set.of("REPARTIDOR")), true));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    /** Un DNI ya asociado a otro usuario devuelve 409. */
+    @Test
+    void dniDuplicadoDevuelve409() {
+        when(usuarioRepository.existsByDni("30111222")).thenReturn(true);
+        RegistroRequest req = request(Set.of("REPARTIDOR"));
+        req.setDni("30111222");
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> authService.registrar(req, true));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        verify(usuarioRepository, never()).save(any());
     }
 
     /** Un nombre de rol inexistente devuelve 400. */
@@ -248,15 +276,20 @@ class AuthServiceImplTest {
         verifyNoInteractions(shipmentClienteClient);
     }
 
-    /** Un REPARTIDOR creado por un ADMIN no necesita DNI ni toca shipment-service. */
+    /**
+     * Un REPARTIDOR creado por un ADMIN no necesita los datos de cliente ni toca shipment-service,
+     * pero sí su DNI (LT4-40: lo vincula con su ficha de courier).
+     */
     @Test
     void repartidorNoNecesitaDatosDeCliente() {
         when(encoder.encode(any())).thenReturn("HASH");
         simularGuardado();
+        RegistroRequest req = request(Set.of("REPARTIDOR"));
+        req.setDni("30111222");
 
-        UserResponse creado = authService.registrar(request(Set.of("REPARTIDOR")), true);
+        UserResponse creado = authService.registrar(req, true);
 
-        assertNull(creado.getDni());
+        assertEquals("30111222", creado.getDni());
         verifyNoInteractions(shipmentClienteClient);
     }
 }
